@@ -58,7 +58,7 @@ jobs:
             - name: Lint + render every chart
               run: |
                   set -e
-                  mkdir -p rendered
+                  mkdir -p rendered pulled
 
                   declare -A CHARTS=(
                     [postgresql]="bitnami/postgresql:data"
@@ -73,12 +73,16 @@ jobs:
                     chart="${CHARTS[$name]%%:*}"
                     ns="${CHARTS[$name]##*:}"
                     values="charts/${name}/values.yaml"
+                    chart_dir_name="${chart#*/}"
 
-                    echo "=== helm lint ${chart} (values: ${values}) ==="
-                    helm lint "${chart}" -f "${values}"
+                    echo "=== helm pull ${chart} -> pulled/${chart_dir_name} ==="
+                    helm pull "${chart}" --untar --untardir pulled
+
+                    echo "=== helm lint pulled/${chart_dir_name} (values: ${values}) ==="
+                    helm lint "pulled/${chart_dir_name}" -f "${values}"
 
                     echo "=== helm template ${chart} -> rendered/${name}.yaml ==="
-                    helm template "${name}" "${chart}" -f "${values}" -n "${ns}" > "rendered/${name}.yaml"
+                    helm template "${name}" "pulled/${chart_dir_name}" -f "${values}" -n "${ns}" > "rendered/${name}.yaml"
                   done
 
             - name: Upload rendered manifests
