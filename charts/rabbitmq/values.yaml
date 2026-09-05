@@ -1,0 +1,34 @@
+# RabbitMQ para POLARIS - namespace: data
+# Instalar con: helm install rabbitmq bitnami/rabbitmq -n data -f charts/rabbitmq/values.yaml
+
+global:
+  security:
+    allowInsecureImages: true
+
+image:
+  registry: docker.io
+  repository: bitnamilegacy/rabbitmq
+  tag: 4.1.3-debian-12-r1
+
+auth:
+  username: airflow
+  existingPasswordSecret: rabbitmq-creds
+  existingSecretPasswordKey: rabbitmq-password
+
+persistence:
+  enabled: true
+  size: 4Gi
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: 750m
+    memory: 768Mi
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring

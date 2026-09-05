@@ -1,0 +1,31 @@
+# Ingress para Grafana (namespace: monitoring)
+# El Ingress de Airflow ya viene integrado en charts/airflow/values.yaml (ingress.apiServer)
+# y no necesita definirse aquí aparte.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  namespace: monitoring
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - polaris-grafana.duckdns.org
+      # cert-manager crea este Secret solo -- no lo crees tú a mano.
+      secretName: grafana-tls
+  rules:
+    - host: polaris-grafana.duckdns.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                # el chart kube-prometheus-stack nombra el service como
+                # "<release-name>-grafana" -- ajusta si usaste otro release name
+                name: monitoring-grafana
+                port:
+                  number: 80

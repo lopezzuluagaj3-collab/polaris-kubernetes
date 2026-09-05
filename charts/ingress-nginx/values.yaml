@@ -1,0 +1,24 @@
+# ingress-nginx para POLARIS - namespace: ingress-nginx
+# Repo: helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+# Instalar con:
+#   kubectl create namespace ingress-nginx
+#   helm install ingress-nginx ingress-nginx/ingress-nginx -n ingress-nginx -f charts/ingress-nginx/values.yaml
+#
+# K3s en EC2 "pelado" no tiene un cloud LoadBalancer (no hay ELB automático
+# como en EKS), así que exponemos el controller como NodePort con puertos
+# fijos. El bastion reenvía 80/443 -> estos NodePorts en la IP privada de
+# cualquier nodo del clúster (K3s expone el NodePort en TODOS los nodos,
+# no solo en el que corre el pod).
+controller:
+  service:
+    type: NodePort
+    nodePorts:
+      http: 30080
+      https: 30443
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

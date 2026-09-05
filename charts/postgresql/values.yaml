@@ -1,0 +1,40 @@
+# PostgreSQL para POLARIS - namespace: data
+# Instalar con: helm install postgres bitnami/postgresql -n data -f charts/postgresql/values.yaml
+
+# Bitnami dejó de publicar tags versionados en docker.io/bitnami desde ago 2025.
+# Usamos el repo legacy (sin updates, pero con los tags que necesitamos).
+global:
+  security:
+    allowInsecureImages: true
+
+image:
+  registry: docker.io
+  repository: bitnamilegacy/postgresql
+  tag: 16.4.0-debian-12-r2
+
+auth:
+  username: airflow
+  database: airflow
+  existingSecret: postgres-creds
+  secretKeys:
+    adminPasswordKey: postgres-password
+    userPasswordKey: password
+
+primary:
+  persistence:
+    enabled: true
+    size: 8Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+# Métricas para que Prometheus las scrapee (namespace monitoring)
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring

@@ -1,0 +1,56 @@
+# kube-prometheus-stack para POLARIS - namespace: monitoring
+# Repo: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+# Instalar con: helm install monitoring prometheus-community/kube-prometheus-stack -n monitoring -f charts/monitoring/values.yaml
+
+# Por defecto este chart solo "ve" ServiceMonitors creados por él mismo (via
+# release label). Como Postgres y RabbitMQ viven en el namespace "data" y
+# cada uno crea su propio ServiceMonitor, hay que decirle a Prometheus que
+# los recoja igual sin exigir ese label.
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    retention: 7d
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+
+grafana:
+  enabled: true
+  admin:
+    existingSecret: grafana-admin-creds
+    userKey: admin-user
+    passwordKey: admin-password
+  persistence:
+    enabled: true
+    size: 2Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi

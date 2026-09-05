@@ -1,0 +1,62 @@
+# Airflow para POLARIS - namespace: airflow
+# Instalar con: helm install airflow apache-airflow/airflow -n airflow -f charts/airflow/values.yaml
+
+airflowVersion: "3.0.2"
+defaultAirflowTag: "3.0.2"
+
+executor: CeleryExecutor
+
+postgresql:
+  enabled: false
+
+redis:
+  enabled: false
+
+# -----------------------------------------------------------------------------
+# Todas las credenciales viven en Secrets de Kubernetes (creados una sola vez
+# con scripts/create-secrets.sh, directo en el nodo -- NUNCA en este archivo).
+# Cada *SecretName apunta a un Secret con una única key llamada "connection"
+# que contiene la connection string COMPLETA (usuario+password incluidos).
+# -----------------------------------------------------------------------------
+data:
+  metadataSecretName: airflow-metadata
+  resultBackendSecretName: airflow-result-backend
+  brokerUrlSecretName: airflow-broker-url
+
+fernetKeySecretName: airflow-fernet-key
+apiSecretKeySecretName: airflow-api-secret-key
+jwtSecretName: airflow-jwt-secret
+
+apiServer:
+  replicas: 1
+  startupProbe:
+    timeoutSeconds: 20
+    failureThreshold: 20
+    periodSeconds: 10
+  env:
+    - name: AIRFLOW__API__WORKERS
+      value: "1"
+
+# apiServer.base_url debe coincidir con el host del Ingress de abajo, si no
+# el redirect interno del login/JWT queda mal armado.
+config:
+  api:
+    base_url: "https://polaris-airflow.duckdns.org"
+
+ingress:
+  enabled: true
+  apiServer:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+      - name: polaris-airflow.duckdns.org
+        tls:
+          enabled: true
+          # cert-manager crea este Secret solo cuando ve la annotation de
+          # arriba en el Ingress -- no lo crees tú a mano.
+          secretName: airflow-tls
+
+statsd:
+  enabled: false
