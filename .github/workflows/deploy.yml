@@ -120,7 +120,7 @@ jobs:
           name: rendered-manifests
           path: rendered/
       - name: Trivy config scan (IaC misconfigs)
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5
+        uses: aquasecurity/trivy-action@0.29.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -128,6 +128,7 @@ jobs:
           scan-ref: rendered/
           exit-code: "1"
           severity: "CRITICAL,HIGH"
+          trivy-version: "v0.58.0"
           trivyignores: docs/trivy-ignore.yaml
 
       - name: SonarCloud Scan
