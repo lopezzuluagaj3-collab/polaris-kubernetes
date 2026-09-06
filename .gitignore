@@ -8,3 +8,7 @@ scripts/create-secrets.sh
 **/charts/*.tgz
 
 # End of https://www.toptal.com/developers/gitignore/api/helm
+
+
+
+.kilo

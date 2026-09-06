@@ -1,0 +1,103 @@
+# trivy-ignore.yaml
+# Lista de excepciones para el escaneo de IaC de Trivy.
+# Cada entrada documenta el ID, el motivo y la fecha de la decisión.
+# Use: trivy config --ignorefile docs/trivy-ignore.yaml rendered/
+#
+# Convención: listar SOLO lo que NO podemos corregir desde values.yaml
+# (permisos que el chart upstream necesita para funcionar). El resto
+# se corrige en charts/*/values.yaml.
+# Severidad: HIGH o CRITICAL. CRITICAL nunca se ignora sin justificación.
+
+misconfigurations:
+  # ===========================================================================
+  # cert-manager (chart upstream jetstack/cert-manager)
+  # ===========================================================================
+  - id: AVD-KSV-0041
+    paths:
+      - cert-manager.yaml
+    statement: "cert-manager-controller-* gestiona los Secret con los certificados emitidos. Requerido por diseño del chart."
+    expired_at: 2027-12-31
+
+  - id: AVD-KSV-0114
+    paths:
+      - cert-manager.yaml
+    statement: "cert-manager-admission necesita update/patch de validatingwebhookconfigurations para mantener su admission webhook. Requerido por diseño."
+    expired_at: 2027-12-31
+
+  - id: AVD-KSV-0056
+    paths:
+      - cert-manager.yaml
+    statement: "cert-manager-challenges crea Services/Ingresses temporales para validar el dominio (HTTP-01). Mitigado por defecto: el SA solo puede crear en su propio namespace y se limita con NetworkPolicy."
+    expired_at: 2027-12-31
+
+  # ===========================================================================
+  # ingress-nginx (chart upstream ingress-nginx/ingress-nginx)
+  # ===========================================================================
+  - id: AVD-KSV-0041
+    paths:
+      - ingress-nginx.yaml
+    statement: "ingress-nginx lee Secrets de TLS para configurar el SSL en los backends. Requerido por diseño."
+    expired_at: 2027-12-31
+
+  - id: AVD-KSV-0114
+    paths:
+      - ingress-nginx.yaml
+    statement: "ingress-nginx-admission mantiene su ValidatingWebhook para validar objetos Ingress al crearlos. Requerido por diseño."
+    expired_at: 2027-12-31
+
+  # ===========================================================================
+  # kube-prometheus-stack (chart upstream prometheus-community/kube-prometheus-stack)
+  # ===========================================================================
+  - id: AVD-KSV-0041
+    paths:
+      - monitoring.yaml
+    statement: "kube-prometheus-operator, grafana-clusterrole y kube-state-metrics leen Secrets (credenciales de remote_write, basic-auth, etc.). Requerido por diseño."
+    expired_at: 2027-12-31
+
+  - id: AVD-KSV-0045
+    paths:
+      - monitoring.yaml
+    statement: "kube-prometheus-operator usa verb '*' sobre statefulsets/configmaps/secrets. Es requerido para operator-pattern; se compensa con namespace dedicado y NetworkPolicy."
+    expired_at: 2027-12-31
+
+  - id: AVD-KSV-0056
+    paths:
+      - monitoring.yaml
+    statement: "kube-prometheus-operator crea Services/Endpoints para ServiceMonitor. Es parte del operator-pattern; se compensa con namespace dedicado."
+    expired_at: 2027-12-31
+
+  - id: AVD-KSV-0114
+    paths:
+      - monitoring.yaml
+    statement: "kube-prometheus-admission mantiene su admission webhook. Requerido por diseño."
+    expired_at: 2027-12-31
+
+  # ===========================================================================
+  # prometheus-node-exporter (hostNetwork/hostPID/hostPath)
+  # ===========================================================================
+  - id: AVD-KSV-0009
+    paths:
+      - monitoring.yaml
+    statement: "prometheus-node-exporter es un DaemonSet: requiere hostNetwork=true para descubrir servicios escuchando en localhost del nodo. Es la naturaleza del exporter."
+    expired_at: 2027-12-31
+
+  - id: AVD-KSV-0010
+    paths:
+      - monitoring.yaml
+    statement: "prometheus-node-exporter requiere hostPID=true para correlacionar métricas de red con PIDs del host. Requerido por diseño del chart."
+    expired_at: 2027-12-31
+
+  - id: AVD-KSV-0121
+    paths:
+      - monitoring.yaml
+    statement: "prometheus-node-exporter monta /proc y /sys del host como read-only. Es la única forma de exportar métricas del kernel y la red del nodo."
+    expired_at: 2027-12-31
+
+  # ===========================================================================
+  # airflow (chart upstream apache-airflow/airflow)
+  # ===========================================================================
+  - id: AVD-KSV-0053
+    paths:
+      - airflow.yaml
+    statement: "airflow-pod-launcher-role necesita pods/exec para KubernetesPodOperator/KubernetesExecutor. No configurable desde values.yaml; mitigado con SA dedicada por namespace y NetworkPolicy de egress restringido."
+    expired_at: 2027-06-30

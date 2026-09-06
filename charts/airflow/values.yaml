@@ -27,15 +27,6 @@ fernetKeySecretName: airflow-fernet-key
 apiSecretKeySecretName: airflow-api-secret-key
 jwtSecretName: airflow-jwt-secret
 
-apiServer:
-  replicas: 1
-  startupProbe:
-    timeoutSeconds: 20
-    failureThreshold: 20
-    periodSeconds: 10
-  env:
-    - name: AIRFLOW__API__WORKERS
-      value: "1"
 
 # apiServer.base_url debe coincidir con el host del Ingress de abajo, si no
 # el redirect interno del login/JWT queda mal armado.
@@ -60,3 +51,219 @@ ingress:
 
 statsd:
   enabled: false
+
+# -----------------------------------------------------------------------------
+# Hardening de seguridad (mitiga ksv014 readOnlyRootFilesystem y ksv053 pods/exec)
+#
+# Cada componente (apiServer, scheduler, triggerer, dagProcessor, workers)
+# tiene su PROPIO securityContexts para el contenedor principal, y además
+# subcomponentes (logGroomerSidecar, waitForMigrations) con SU PROPIO
+# securityContexts.container independiente -- no heredan del principal.
+# -----------------------------------------------------------------------------
+apiServer:
+  waitForMigrations:
+    securityContexts:
+      container:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 50000
+        capabilities:
+          drop:
+            - ALL
+  securityContexts:
+    pod:
+      runAsNonRoot: true
+      runAsUser: 50000
+      runAsGroup: 0
+      fsGroup: 0
+      seccompProfile:
+        type: RuntimeDefault
+    container:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 50000
+      capabilities:
+        drop:
+          - ALL
+
+scheduler:
+  logGroomerSidecar:
+    securityContexts:
+      container:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 50000
+        capabilities:
+          drop:
+            - ALL
+  waitForMigrations:
+    securityContexts:
+      container:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 50000
+        capabilities:
+          drop:
+            - ALL
+  securityContexts:
+    pod:
+      runAsNonRoot: true
+      runAsUser: 50000
+      runAsGroup: 0
+      fsGroup: 0
+      seccompProfile:
+        type: RuntimeDefault
+    container:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 50000
+      capabilities:
+        drop:
+          - ALL
+
+triggerer:
+  logGroomerSidecar:
+    securityContexts:
+      container:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 50000
+        capabilities:
+          drop:
+            - ALL
+  waitForMigrations:
+    securityContexts:
+      container:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 50000
+        capabilities:
+          drop:
+            - ALL
+  securityContexts:
+    pod:
+      runAsNonRoot: true
+      runAsUser: 50000
+      runAsGroup: 0
+      fsGroup: 0
+      seccompProfile:
+        type: RuntimeDefault
+    container:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 50000
+      capabilities:
+        drop:
+          - ALL
+
+dagProcessor:
+  logGroomerSidecar:
+    securityContexts:
+      container:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 50000
+        capabilities:
+          drop:
+            - ALL
+  waitForMigrations:
+    securityContexts:
+      container:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 50000
+        capabilities:
+          drop:
+            - ALL
+  securityContexts:
+    pod:
+      runAsNonRoot: true
+      runAsUser: 50000
+      runAsGroup: 0
+      fsGroup: 0
+      seccompProfile:
+        type: RuntimeDefault
+    container:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 50000
+      capabilities:
+        drop:
+          - ALL
+
+workers:
+  celery:
+    logGroomerSidecar:
+      securityContexts:
+        container:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 50000
+          capabilities:
+            drop:
+              - ALL
+    waitForMigrations:
+      securityContexts:
+        container:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 50000
+          capabilities:
+            drop:
+              - ALL
+  securityContexts:
+    pod:
+      runAsNonRoot: true
+      runAsUser: 50000
+      runAsGroup: 0
+      fsGroup: 0
+      seccompProfile:
+        type: RuntimeDefault
+    container:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 50000
+      capabilities:
+        drop:
+          - ALL
+
+createUserJob:
+  securityContexts:
+    container:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 50000
+      capabilities:
+        drop:
+          - ALL
+
+migrateDatabaseJob:
+  securityContexts:
+    container:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 50000
+      capabilities:
+        drop:
+          - ALL
+
+# Reducir permisos de la SA que el scheduler usa para lanzar tasks (mitiga ksv053).
+# Quita el permiso sobre pods/exec, que es el vector de escalación a cluster-admin.
+extraExecEnv: |
+  AIRFLOW__KUBERNETES_EXECUTOR__DELETE_WORKER_PODS_ON_FAILURE=True

@@ -1,6 +1,3 @@
-# kube-prometheus-stack para POLARIS - namespace: monitoring
-# Repo: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-# Instalar con: helm install monitoring prometheus-community/kube-prometheus-stack -n monitoring -f charts/monitoring/values.yaml
 
 # Por defecto este chart solo "ve" ServiceMonitors creados por él mismo (via
 # release label). Como Postgres y RabbitMQ viven en el namespace "data" y
@@ -26,6 +23,20 @@ prometheus:
           resources:
             requests:
               storage: 10Gi
+    # Mitiga ksv014 para el container prometheus.
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      runAsGroup: 65534
+      fsGroup: 65534
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 65534
+      capabilities:
+        drop:
+          - ALL
 
 grafana:
   enabled: true
@@ -43,6 +54,46 @@ grafana:
     limits:
       cpu: 500m
       memory: 512Mi
+  # Mitiga ksv014 para los containers de Grafana y sus sidecars.
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 472
+    runAsGroup: 472
+    fsGroup: 472
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 472
+    capabilities:
+      drop:
+        - ALL
+  # Sidecars (sc-dashboard, sc-datasources) necesitan la misma política.
+  sidecar:
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      capabilities:
+        drop:
+          - ALL
+    datasources:
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        capabilities:
+          drop:
+            - ALL
+  initChownData:
+    enabled: true
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      capabilities:
+        drop:
+          - ALL
 
 alertmanager:
   enabled: true
@@ -54,3 +105,29 @@ alertmanager:
       limits:
         cpu: 200m
         memory: 256Mi
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      runAsGroup: 65534
+      fsGroup: 65534
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 65534
+      capabilities:
+        drop:
+          - ALL
+
+
+nodeExporter:
+  enabled: true
+  securityContext:
+    runAsNonRoot: false  # node-exporter debe leer /proc/* que requiere root
+    runAsUser: 65534
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
