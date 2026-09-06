@@ -1,4 +1,3 @@
-
 # Por defecto este chart solo "ve" ServiceMonitors creados por él mismo (via
 # release label). Como Postgres y RabbitMQ viven en el namespace "data" y
 # cada uno crea su propio ServiceMonitor, hay que decirle a Prometheus que

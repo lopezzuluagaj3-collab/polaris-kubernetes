@@ -33,7 +33,7 @@ controller:
         runAsUser: 2000
         fsGroup: 2000
 
-        
+
   containerPorts:
     - name: http
       containerPort: 8080
