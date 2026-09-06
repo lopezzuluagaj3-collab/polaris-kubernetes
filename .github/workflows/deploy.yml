@@ -120,7 +120,6 @@ jobs:
           name: rendered-manifests
           path: rendered/
 
-          
       - name: Install Trivy CLI
         run: |
           sudo apt-get update -y
@@ -247,13 +246,6 @@ jobs:
       - name: Apply namespaces
         run: kubectl apply -f namespaces/namespaces.yaml
 
-      - name: Deploy data layer (Postgres + RabbitMQ)
-        run: |
-          helm upgrade --install postgres bitnami/postgresql \
-            -n data --create-namespace -f charts/postgresql/values.yaml --wait --timeout 10m
-          helm upgrade --install rabbitmq bitnami/rabbitmq \
-            -n data --create-namespace -f charts/rabbitmq/values.yaml --wait --timeout 10m
-
       - name: Deploy cert-manager + ClusterIssuer
         run: |
           helm upgrade --install cert-manager jetstack/cert-manager \
@@ -265,15 +257,22 @@ jobs:
           helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
             -n ingress-nginx --create-namespace -f charts/ingress-nginx/values.yaml --wait --timeout 5m
 
-      - name: Deploy Airflow
-        run: |
-          helm upgrade --install airflow apache-airflow/airflow \
-            -n airflow --create-namespace -f charts/airflow/values.yaml --wait --timeout 15m
-
       - name: Deploy monitoring (kube-prometheus-stack)
         run: |
           helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
             -n monitoring --create-namespace -f charts/monitoring/values.yaml --wait --timeout 10m
+
+      - name: Deploy data layer (Postgres + RabbitMQ)
+        run: |
+          helm upgrade --install postgres bitnami/postgresql \
+            -n data --create-namespace -f charts/postgresql/values.yaml --wait --timeout 10m
+          helm upgrade --install rabbitmq bitnami/rabbitmq \
+            -n data --create-namespace -f charts/rabbitmq/values.yaml --wait --timeout 10m
+
+      - name: Deploy Airflow
+        run: |
+          helm upgrade --install airflow apache-airflow/airflow \
+            -n airflow --create-namespace -f charts/airflow/values.yaml --wait --timeout 15m
 
       - name: Apply Ingress rules (Grafana)
         run: kubectl apply -f ingress/ingress-rules.yaml
