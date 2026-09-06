@@ -120,7 +120,7 @@ jobs:
           name: rendered-manifests
           path: rendered/
       - name: Trivy config scan (IaC misconfigs)
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8
+        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
