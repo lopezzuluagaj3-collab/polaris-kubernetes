@@ -123,9 +123,7 @@ jobs:
           
       - name: Install Trivy CLI
         run: |
-          wget -q https://github.com/aquasecurity/trivy/releases/download/v0.58.0/trivy_0.58.0_Linux-64bit.tar.gz
-          tar xzf trivy_0.58.0_Linux-64bit.tar.gz
-          sudo mv trivy /usr/local/bin/
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.58.0
           trivy --version
 
       - name: Trivy config scan (IaC misconfigs)
@@ -137,7 +135,6 @@ jobs:
           severity: "CRITICAL,HIGH"
           trivyignores: docs/trivy-ignore.yaml
           skip-setup-trivy: true
-
 
       - name: SonarCloud Scan
         if: always()
