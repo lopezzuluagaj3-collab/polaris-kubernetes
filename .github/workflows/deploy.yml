@@ -1,302 +1,281 @@
 name: polaris-platform CI/CD
 
 on:
-    push:
-        branches: [main]
-        paths:
-            - "charts/**"
-            - "ingress/**"
-            - "namespaces/**"
-            - ".github/workflows/deploy.yml"
-    pull_request:
-        branches: [main]
-    workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - "charts/**"
+      - "ingress/**"
+      - "namespaces/**"
+      - ".github/workflows/deploy.yml"
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
 
 env:
-    HELM_VERSION: v3.15.4
+  HELM_VERSION: v3.15.4
 
 jobs:
-    # ---------------------------------------------------------------------
-    # 1) YAMLLint - sintaxis y estilo de todos los YAML del repo
-    # ---------------------------------------------------------------------
-    yamllint:
-        name: YAMLLint
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+  # ---------------------------------------------------------------------
+  # 1) YAMLLint - sintaxis y estilo de todos los YAML del repo
+  # ---------------------------------------------------------------------
+  yamllint:
+    name: YAMLLint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Run yamllint
+        uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c
+        with:
+          config_file: ".yamllint.yml"
+          file_or_dir: charts ingress namespaces
 
-            - name: Run yamllint
-              uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c
-              with:
-                  config_file: ".yamllint.yml"
-                  file_or_dir: charts ingress namespaces
+  # ---------------------------------------------------------------------
+  # 2) Helm Lint - valida cada chart (upstream + nuestros values.yaml)
+  #    y renderiza los manifiestos finales para las etapas siguientes
+  # ---------------------------------------------------------------------
+  helm-lint:
+    name: Helm Lint
+    runs-on: ubuntu-latest
+    needs: yamllint
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Setup Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4
+        with:
+          version: ${{ env.HELM_VERSION }}
+      - name: Add Helm repos
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo add apache-airflow https://airflow.apache.org
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo add jetstack https://charts.jetstack.io
+          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+          helm repo update
+      - name: Lint + render every chart
+        run: |
+          set -e
+          mkdir -p rendered pulled
+          declare -A CHARTS=(
+            [postgresql]="bitnami/postgresql:data"
+            [rabbitmq]="bitnami/rabbitmq:data"
+            [airflow]="apache-airflow/airflow:airflow"
+            [monitoring]="prometheus-community/kube-prometheus-stack:monitoring"
+            [cert-manager]="jetstack/cert-manager:cert-manager"
+            [ingress-nginx]="ingress-nginx/ingress-nginx:ingress-nginx"
+          )
+          for name in "${!CHARTS[@]}"; do
+            chart="${CHARTS[$name]%%:*}"
+            ns="${CHARTS[$name]##*:}"
+            values="charts/${name}/values.yaml"
+            chart_dir_name="${chart#*/}"
+            echo "=== helm pull ${chart} -> pulled/${chart_dir_name} ==="
+            helm pull "${chart}" --untar --untardir pulled
+            echo "=== helm lint pulled/${chart_dir_name} (values: ${values}) ==="
+            helm lint "pulled/${chart_dir_name}" -f "${values}"
+            echo "=== helm template ${chart} -> rendered/${name}.yaml ==="
+            helm template "${name}" "pulled/${chart_dir_name}" -f "${values}" -n "${ns}" > "rendered/${name}.yaml"
+          done
+      - name: Upload rendered manifests
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rendered-manifests
+          path: rendered/
+      - name: Checkov - Escaneo de seguridad de los manifiestos K8s
+        id: checkov
+        uses: bridgecrewio/checkov-action@dfb51aed1b783289b0d3f255028e7a88d5e8caa1
+        with:
+          directory: rendered
+          framework: kubernetes
+          output_format: cli,json
+          output_file_path: checkov-report.txt,checkov-report.json
+          soft_fail: true
+        env:
+          PRISMA_API_URL: https://api.prismacloud.io
+      - name: Subir reporte de Checkov
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: checkov-report
+          path: |
+            checkov-report.txt
+            checkov-report.json
+          if-no-files-found: warn
+          retention-days: 14
 
-    # ---------------------------------------------------------------------
-    # 2) Helm Lint - valida cada chart (upstream + nuestros values.yaml)
-    #    y renderiza los manifiestos finales para las etapas siguientes
-    # ---------------------------------------------------------------------
-    helm-lint:
-        name: Helm Lint
-        runs-on: ubuntu-latest
-        needs: yamllint
-        steps:
-            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+  # ---------------------------------------------------------------------
+  # 3) Trivy - escanea los manifiestos renderizados en busca de
+  #    misconfiguraciones (privilegios, falta de resource limits, etc.)
+  # 4) SonarCloud - análisis estático del repo (fusionado en este job)
+  # ---------------------------------------------------------------------
+  trivy:
+    name: Trivy + SonarCloud
+    runs-on: ubuntu-latest
+    needs: helm-lint
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Download rendered manifests
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: rendered-manifests
+          path: rendered/
+      - name: Trivy config scan (IaC misconfigs)
+        uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          scan-type: config
+          scan-ref: rendered/
+          exit-code: "1"
+          severity: "CRITICAL,HIGH"
+          trivyignores: docs/trivy-ignore.yaml
 
-            - name: Setup Helm
-              uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4
-              with:
-                  version: ${{ env.HELM_VERSION }}
+      - name: SonarCloud Scan
+        if: always()
+        uses: SonarSource/sonarqube-scan-action@689fb39b34b9aa95ebc5f8f119343ddd51542402
+        with:
+          projectBaseDir: .
+          args: >
+            -Dsonar.projectKey=lopezzuluagaj3-collab_polaris_infrastructure
+            -Dsonar.organization=lopezzuluagaj3-collab
+            -Dsonar.qualitygate.wait=false
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
 
-            - name: Add Helm repos
-              run: |
-                  helm repo add bitnami https://charts.bitnami.com/bitnami
-                  helm repo add apache-airflow https://airflow.apache.org
-                  helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-                  helm repo add jetstack https://charts.jetstack.io
-                  helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-                  helm repo update
+      - name: Consultar Quality Gate de SonarCloud
+        if: always()
+        working-directory: .
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          set -e
+          TASK_FILE=".scannerwork/report-task.txt"
+          if [ ! -f "$TASK_FILE" ]; then
+            echo "No se encontró report-task.txt — el scan pudo haber fallado." | tee sonar_result.txt
+            exit 0
+          fi
+          CE_TASK_URL=$(grep "ceTaskUrl=" "$TASK_FILE" | cut -d'=' -f2-)
+          PROJECT_KEY=$(grep "projectKey=" "$TASK_FILE" | cut -d'=' -f2-)
+          echo "Esperando que el procesamiento del background task finalice en SonarCloud..."
+          STATUS="PENDING"
+          for i in $(seq 1 30); do
+            RESPONSE=$(curl -s -u "${SONAR_TOKEN}:" "$CE_TASK_URL")
+            STATUS=$(echo "$RESPONSE" | jq -r '.task.status')
+            echo "Estado de la tarea: $STATUS"
+            if [ "$STATUS" = "SUCCESS" ] || [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "CANCELED" ]; then
+              break
+            fi
+            sleep 5
+          done
+          if [ "$STATUS" != "SUCCESS" ]; then
+            echo "El análisis no terminó correctamente en el servidor (estado: $STATUS)" | tee sonar_result.txt
+            exit 0
+          fi
+          ANALYSIS_ID=$(echo "$RESPONSE" | jq -r '.task.analysisId')
+          sleep 3
+          QG_RESPONSE=$(curl -s -u "${SONAR_TOKEN}:" "https://sonarcloud.io/api/qualitygates/project_status?analysisId=$ANALYSIS_ID")
+          QG_STATUS=$(echo "$QG_RESPONSE" | jq -r '.projectStatus.status')
+          {
+            echo "=== Resultado SonarCloud ==="
+            echo "Quality Gate: $QG_STATUS"
+            echo ""
+            echo "Condiciones evaluadas:"
+            echo "$QG_RESPONSE" | jq -r '.projectStatus.conditions[]? | "- \(.metricKey): \(.status) (actual: \(.actualValue // "N/A"), umbral: \(.errorThreshold // "N/A"))"'
+            echo ""
+            echo "Ver detalle completo: https://sonarcloud.io/dashboard?id=${PROJECT_KEY}"
+          } | tee sonar_result.txt
 
-            - name: Lint + render every chart
-              run: |
-                  set -e
-                  mkdir -p rendered pulled
+      - name: Asegurar que existan los reportes antes de adjuntar
+        if: always()
+        run: |
+          for f in sonar_result.txt checkov-report.txt checkov-report.json; do
+            [ -f "$f" ] || touch "$f"
+          done
 
-                  declare -A CHARTS=(
-                    [postgresql]="bitnami/postgresql:data"
-                    [rabbitmq]="bitnami/rabbitmq:data"
-                    [airflow]="apache-airflow/airflow:airflow"
-                    [monitoring]="prometheus-community/kube-prometheus-stack:monitoring"
-                    [cert-manager]="jetstack/cert-manager:cert-manager"
-                    [ingress-nginx]="ingress-nginx/ingress-nginx:ingress-nginx"
-                  )
+      - name: Descargar reporte de Checkov (del job helm-lint)
+        if: always()
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: checkov-report
+          path: .
 
-                  for name in "${!CHARTS[@]}"; do
-                    chart="${CHARTS[$name]%%:*}"
-                    ns="${CHARTS[$name]##*:}"
-                    values="charts/${name}/values.yaml"
-                    chart_dir_name="${chart#*/}"
+      - name: Enviar correo con resultado de Trivy, SonarCloud y Checkov
+        if: always()
+        uses: dawidd6/action-send-mail@4226df7daafa6fc901a43789c49bf7ab309066e7
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "CI POLARIS - SonarCloud + Checkov"
+          to: ${{ secrets.NOTIFY_EMAIL }}
+          from: "CI POLARIS <${{ secrets.SMTP_USERNAME }}>"
+          body: "Se ejecutó el pipeline de polaris-platform (Helm/Kubernetes). Revisa los adjuntos para ver el resultado de SonarCloud y el escaneo de seguridad de Checkov sobre los manifiestos renderizados."
+          attachments: |
+            sonar_result.txt
+            checkov-report.txt
+            checkov-report.json
 
-                    echo "=== helm pull ${chart} -> pulled/${chart_dir_name} ==="
-                    helm pull "${chart}" --untar --untardir pulled
+  # ---------------------------------------------------------------------
+  # 5) Deploy - corre en el runner self-hosted dentro de svr-airflow,
+  #    que ya tiene línea de vista al K3s API server (127.0.0.1:6443)
+  # ---------------------------------------------------------------------
+  deploy:
+    name: Deploy
+    runs-on: [self-hosted, polaris-airflow]
+    environment: production
+    needs: trivy
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
-                    echo "=== helm lint pulled/${chart_dir_name} (values: ${values}) ==="
-                    helm lint "pulled/${chart_dir_name}" -f "${values}"
+      - name: Add Helm repos
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo add apache-airflow https://airflow.apache.org
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo add jetstack https://charts.jetstack.io
+          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+          helm repo update
 
-                    echo "=== helm template ${chart} -> rendered/${name}.yaml ==="
-                    helm template "${name}" "pulled/${chart_dir_name}" -f "${values}" -n "${ns}" > "rendered/${name}.yaml"
-                  done
+      - name: Apply namespaces
+        run: kubectl apply -f namespaces/namespaces.yaml
 
-            - name: Upload rendered manifests
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-              with:
-                  name: rendered-manifests
-                  path: rendered/
+      - name: Deploy data layer (Postgres + RabbitMQ)
+        run: |
+          helm upgrade --install postgres bitnami/postgresql \
+            -n data --create-namespace -f charts/postgresql/values.yaml --wait --timeout 10m
+          helm upgrade --install rabbitmq bitnami/rabbitmq \
+            -n data --create-namespace -f charts/rabbitmq/values.yaml --wait --timeout 10m
 
-            - name: Checkov - Escaneo de seguridad de los manifiestos K8s
-              id: checkov
-              uses: bridgecrewio/checkov-action@dfb51aed1b783289b0d3f255028e7a88d5e8caa1
-              with:
-                  directory: rendered
-                  framework: kubernetes
-                  output_format: cli,json
-                  output_file_path: checkov-report.txt,checkov-report.json
-                  soft_fail: true
-              env:
-                  PRISMA_API_URL: https://api.prismacloud.io
+      - name: Deploy cert-manager + ClusterIssuer
+        run: |
+          helm upgrade --install cert-manager jetstack/cert-manager \
+            -n cert-manager --create-namespace -f charts/cert-manager/values.yaml --wait --timeout 5m
+          kubectl apply -f charts/cert-manager/cluster-issuer.yaml
 
-            - name: Subir reporte de Checkov
-              if: always()
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-              with:
-                  name: checkov-report
-                  path: |
-                      checkov-report.txt
-                      checkov-report.json
-                  if-no-files-found: warn
-                  retention-days: 14
+      - name: Deploy ingress-nginx
+        run: |
+          helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+            -n ingress-nginx --create-namespace -f charts/ingress-nginx/values.yaml --wait --timeout 5m
 
-    # ---------------------------------------------------------------------
-    # 3) Trivy - escanea los manifiestos renderizados en busca de
-    #    misconfiguraciones (privilegios, falta de resource limits, etc.)
-    # 4) SonarCloud - análisis estático del repo (fusionado en este job)
-    # ---------------------------------------------------------------------
-trivy:
-        name: Trivy + SonarCloud
-        runs-on: ubuntu-latest
-        needs: helm-lint
-        steps:
-            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Deploy Airflow
+        run: |
+          helm upgrade --install airflow apache-airflow/airflow \
+            -n airflow --create-namespace -f charts/airflow/values.yaml --wait --timeout 15m
 
-            - name: Download rendered manifests
-              uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-              with:
-                  name: rendered-manifests
-                  path: rendered/
+      - name: Deploy monitoring (kube-prometheus-stack)
+        run: |
+          helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+            -n monitoring --create-namespace -f charts/monitoring/values.yaml --wait --timeout 10m
 
-            - name: Trivy config scan (IaC misconfigs)
-              uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              with:
-                  scan-type: config
-                  scan-ref: rendered/
-                  exit-code: "1"
-                  severity: "CRITICAL,HIGH"
-                  trivyignores: docs/trivy-ignore.yaml
-                  
-            - name: SonarCloud Scan
-              if: always()
-              uses: SonarSource/sonarqube-scan-action@689fb39b34b9aa95ebc5f8f119343ddd51542402
-              with:
-                  projectBaseDir: .
-                  args: >
-                      -Dsonar.projectKey=lopezzuluagaj3-collab_polaris_infrastructure
-                      -Dsonar.organization=lopezzuluagaj3-collab
-                      -Dsonar.qualitygate.wait=false
-              env:
-                  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-                  SONAR_HOST_URL: https://sonarcloud.io
+      - name: Apply Ingress rules (Grafana)
+        run: kubectl apply -f ingress/ingress-rules.yaml
 
-            - name: Consultar Quality Gate de SonarCloud
-              if: always()
-              working-directory: .
-              env:
-                  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-              run: |
-                  set -e
-                  TASK_FILE=".scannerwork/report-task.txt"
-
-                  if [ ! -f "$TASK_FILE" ]; then
-                    echo "No se encontró report-task.txt — el scan pudo haber fallado." | tee sonar_result.txt
-                    exit 0
-                  fi
-
-                  CE_TASK_URL=$(grep "ceTaskUrl=" "$TASK_FILE" | cut -d'=' -f2-)
-                  PROJECT_KEY=$(grep "projectKey=" "$TASK_FILE" | cut -d'=' -f2-)
-
-                  echo "Esperando que el procesamiento del background task finalice en SonarCloud..."
-                  STATUS="PENDING"
-                  for i in $(seq 1 30); do
-                    RESPONSE=$(curl -s -u "${SONAR_TOKEN}:" "$CE_TASK_URL")
-                    STATUS=$(echo "$RESPONSE" | jq -r '.task.status')
-                    echo "Estado de la tarea: $STATUS"
-                    if [ "$STATUS" = "SUCCESS" ] || [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "CANCELED" ]; then
-                      break
-                    fi
-                    sleep 5
-                  done
-
-                  if [ "$STATUS" != "SUCCESS" ]; then
-                    echo "El análisis no terminó correctamente en el servidor (estado: $STATUS)" | tee sonar_result.txt
-                    exit 0
-                  fi
-
-                  ANALYSIS_ID=$(echo "$RESPONSE" | jq -r '.task.analysisId')
-                  sleep 3
-
-                  QG_RESPONSE=$(curl -s -u "${SONAR_TOKEN}:" "https://sonarcloud.io/api/qualitygates/project_status?analysisId=$ANALYSIS_ID")
-                  QG_STATUS=$(echo "$QG_RESPONSE" | jq -r '.projectStatus.status')
-
-                  {
-                    echo "=== Resultado SonarCloud ==="
-                    echo "Quality Gate: $QG_STATUS"
-                    echo ""
-                    echo "Condiciones evaluadas:"
-                    echo "$QG_RESPONSE" | jq -r '.projectStatus.conditions[]? | "- \(.metricKey): \(.status) (actual: \(.actualValue // "N/A"), umbral: \(.errorThreshold // "N/A"))"'
-                    echo ""
-                    echo "Ver detalle completo: https://sonarcloud.io/dashboard?id=${PROJECT_KEY}"
-                  } | tee sonar_result.txt
-
-            - name: Asegurar que existan los reportes antes de adjuntar
-              if: always()
-              run: |
-                  for f in sonar_result.txt checkov-report.txt checkov-report.json; do
-                    [ -f "$f" ] || touch "$f"
-                  done
-
-            - name: Descargar reporte de Checkov (del job helm-lint)
-              if: always()
-              uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-              with:
-                  name: checkov-report
-                  path: .
-
-            - name: Enviar correo con resultado de Trivy, SonarCloud y Checkov
-              if: always()
-              uses: dawidd6/action-send-mail@4226df7daafa6fc901a43789c49bf7ab309066e7
-              with:
-                  server_address: smtp.gmail.com
-                  server_port: 465
-                  username: ${{ secrets.SMTP_USERNAME }}
-                  password: ${{ secrets.SMTP_PASSWORD }}
-                  subject: "CI POLARIS - SonarCloud + Checkov"
-                  to: ${{ secrets.NOTIFY_EMAIL }}
-                  from: "CI POLARIS <${{ secrets.SMTP_USERNAME }}>"
-                  body: "Se ejecutó el pipeline de polaris-platform (Helm/Kubernetes). Revisa los adjuntos para ver el resultado de SonarCloud y el escaneo de seguridad de Checkov sobre los manifiestos renderizados."
-                  attachments: |
-                      sonar_result.txt
-                      checkov-report.txt
-                      checkov-report.json
-
-    # ---------------------------------------------------------------------
-    # 5) Deploy - corre en el runner self-hosted dentro de svr-airflow,
-    #    que ya tiene línea de vista al K3s API server (127.0.0.1:6443)
-    # ---------------------------------------------------------------------
-    deploy:
-        name: Deploy
-        runs-on: [self-hosted, polaris-airflow]
-        environment: production
-        needs: trivy
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        steps:
-            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-
-            - name: Add Helm repos
-              run: |
-                  helm repo add bitnami https://charts.bitnami.com/bitnami
-                  helm repo add apache-airflow https://airflow.apache.org
-                  helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-                  helm repo add jetstack https://charts.jetstack.io
-                  helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-                  helm repo update
-
-            - name: Apply namespaces
-              run: kubectl apply -f namespaces/namespaces.yaml
-
-            - name: Deploy data layer (Postgres + RabbitMQ)
-              run: |
-                  helm upgrade --install postgres bitnami/postgresql \
-                    -n data --create-namespace -f charts/postgresql/values.yaml --wait --timeout 10m
-                  helm upgrade --install rabbitmq bitnami/rabbitmq \
-                    -n data --create-namespace -f charts/rabbitmq/values.yaml --wait --timeout 10m
-
-            - name: Deploy cert-manager + ClusterIssuer
-              run: |
-                  helm upgrade --install cert-manager jetstack/cert-manager \
-                    -n cert-manager --create-namespace -f charts/cert-manager/values.yaml --wait --timeout 5m
-                  kubectl apply -f charts/cert-manager/cluster-issuer.yaml
-
-            - name: Deploy ingress-nginx
-              run: |
-                  helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
-                    -n ingress-nginx --create-namespace -f charts/ingress-nginx/values.yaml --wait --timeout 5m
-
-            - name: Deploy Airflow
-              run: |
-                  helm upgrade --install airflow apache-airflow/airflow \
-                    -n airflow --create-namespace -f charts/airflow/values.yaml --wait --timeout 15m
-
-            - name: Deploy monitoring (kube-prometheus-stack)
-              run: |
-                  helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
-                    -n monitoring --create-namespace -f charts/monitoring/values.yaml --wait --timeout 10m
-
-            - name: Apply Ingress rules (Grafana)
-              run: kubectl apply -f ingress/ingress-rules.yaml
-
-            - name: Verify rollout
-              run: |
-                  kubectl get pods -n data
-                  kubectl get pods -n airflow
-                  kubectl get pods -n monitoring
-                  kubectl get certificate -A
+      - name: Verify rollout
+        run: |
+          kubectl get pods -n data
+          kubectl get pods -n airflow
+          kubectl get pods -n monitoring
+          kubectl get certificate -A
