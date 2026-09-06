@@ -45,6 +45,12 @@ misconfigurations:
     statement: "ingress-nginx-admission mantiene su ValidatingWebhook para validar objetos Ingress al crearlos. Requerido por diseño."
     expired_at: 2027-12-31
 
+  - id: AVD-KSV-0014
+    paths:
+      - ingress-nginx.yaml
+    statement: "El controller no puede correr con readOnlyRootFilesystem=true por una limitación conocida y sin resolver del chart comunitario ingress-nginx/ingress-nginx: necesita escribir /etc/nginx/lua/cfg.json, /tmp/nginx/, /etc/ingress-controller/ssl/ etc. en runtime sin una lista oficial de volúmenes soportados. Ver kubernetes/ingress-nginx#6256 (abierto desde 2020, sin fix). Mitigado con allowPrivilegeEscalation=false y drop ALL capabilities excepto NET_BIND_SERVICE."
+    expired_at: 2027-06-30
+
   # ===========================================================================
   # kube-prometheus-stack (chart upstream prometheus-community/kube-prometheus-stack)
   # ===========================================================================

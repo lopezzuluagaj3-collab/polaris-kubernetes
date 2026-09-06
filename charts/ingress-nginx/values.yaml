@@ -11,13 +11,10 @@ controller:
     limits:
       cpu: 500m
       memory: 512Mi
-
   podSecurityContext:
     fsGroup: 101
     seccompProfile:
       type: RuntimeDefault
-
-
   admissionWebhooks:
     patch:
       securityContext:
@@ -32,8 +29,6 @@ controller:
         runAsNonRoot: true
         runAsUser: 2000
         fsGroup: 2000
-
-
   containerPorts:
     - name: http
       containerPort: 8080
@@ -41,10 +36,15 @@ controller:
     - name: https
       containerPort: 8443
       protocol: TCP
-  # Mitiga ksv014: root FS de solo lectura + drop ALL capabilities.
+  # Mitiga parcialmente ksv014: drop de capabilities + non-root donde es posible.
+  # readOnlyRootFilesystem NO se activa aquí a propósito -- ver AVD-KSV-0014
+  # en docs/trivy-ignore.yaml: es una limitación conocida y sin resolver del
+  # chart comunitario ingress-nginx/ingress-nginx (kubernetes/ingress-nginx#6256),
+  # que necesita escribir en /etc/nginx/lua/cfg.json, /tmp/nginx/, etc. en
+  # tiempo de ejecución sin exponer una lista oficial de volúmenes soportados.
   containerSecurityContext:
     allowPrivilegeEscalation: false
-    readOnlyRootFilesystem: true
+    readOnlyRootFilesystem: false
     runAsNonRoot: false  # ingress-nginx necesita ser root para bind 80/443
     capabilities:
       drop:
@@ -53,9 +53,5 @@ controller:
         - NET_BIND_SERVICE
     seccompProfile:
       type: RuntimeDefault
-  # K3s no permite capabilities NET_BIND_SERVICE con readOnlyRootFilesystem
-  # en algunos drivers, así que también subimos el puerto interno arriba.
   config:
-    # Re-mapear los puertos internos que el controller escucha (no los NodePorts).
-    # Esto evita que el container haga bind() sobre 80/443 directamente.
     use-proxy-protocol: "false"
