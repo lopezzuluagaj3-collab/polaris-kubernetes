@@ -120,7 +120,7 @@ jobs:
     #    misconfiguraciones (privilegios, falta de resource limits, etc.)
     # 4) SonarCloud - análisis estático del repo (fusionado en este job)
     # ---------------------------------------------------------------------
-    trivy:
+trivy:
         name: Trivy + SonarCloud
         runs-on: ubuntu-latest
         needs: helm-lint
@@ -135,13 +135,15 @@ jobs:
 
             - name: Trivy config scan (IaC misconfigs)
               uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               with:
                   scan-type: config
                   scan-ref: rendered/
                   exit-code: "1"
                   severity: "CRITICAL,HIGH"
                   trivyignores: docs/trivy-ignore.yaml
-
+                  
             - name: SonarCloud Scan
               if: always()
               uses: SonarSource/sonarqube-scan-action@689fb39b34b9aa95ebc5f8f119343ddd51542402
