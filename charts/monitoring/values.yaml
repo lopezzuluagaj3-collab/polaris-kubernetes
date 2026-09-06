@@ -87,10 +87,14 @@ grafana:
   initChownData:
     enabled: true
     securityContext:
+      runAsUser: 0
+      runAsNonRoot: false
       allowPrivilegeEscalation: false
       readOnlyRootFilesystem: true
-      runAsNonRoot: true
       capabilities:
+        add:
+          - CHOWN
+          - DAC_OVERRIDE
         drop:
           - ALL
 
