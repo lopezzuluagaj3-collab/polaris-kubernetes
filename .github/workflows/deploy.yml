@@ -123,18 +123,17 @@ jobs:
           
       - name: Install Trivy CLI
         run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.58.0
+          sudo apt-get update -y
+          sudo apt-get install -y wget apt-transport-https gnupg
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update -y
+          sudo apt-get install -y trivy
           trivy --version
 
       - name: Trivy config scan (IaC misconfigs)
-        uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284
-        with:
-          scan-type: config
-          scan-ref: rendered/
-          exit-code: "1"
-          severity: "CRITICAL,HIGH"
-          trivyignores: docs/trivy-ignore.yaml
-          skip-setup-trivy: true
+        run: |
+          trivy config rendered/ --severity CRITICAL,HIGH --exit-code 1 --trivyignore docs/trivy-ignore.yaml
 
       - name: SonarCloud Scan
         if: always()
