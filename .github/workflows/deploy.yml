@@ -123,14 +123,14 @@ jobs:
           
       - name: Trivy config scan (IaC misconfigs)
         uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           scan-type: config
           scan-ref: rendered/
           exit-code: "1"
           severity: "CRITICAL,HIGH"
-          trivyignore: docs/trivy-ignore.yaml
+          version: "v0.58.0"
+          trivyignores: docs/trivy-ignore.yaml
+          token-setup-trivy: ${{ secrets.GITHUB_TOKEN }}
 
 
       - name: SonarCloud Scan
