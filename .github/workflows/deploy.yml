@@ -133,7 +133,7 @@ jobs:
 
       - name: Trivy config scan (IaC misconfigs)
         run: |
-          trivy config rendered/ --severity CRITICAL,HIGH --exit-code 1 --trivyignore docs/trivy-ignore.yaml
+          trivy config --severity CRITICAL,HIGH --exit-code 1 --ignorefile docs/trivy-ignore.yaml rendered/
 
       - name: SonarCloud Scan
         if: always()
