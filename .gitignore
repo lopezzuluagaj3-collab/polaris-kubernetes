@@ -12,3 +12,25 @@ scripts/create-secrets.sh
 
 
 .kilo
+
+
+# Secretos reales -- nunca commitear, solo correr a mano en el nodo
+scripts/create-secrets.sh
+
+# Charts descargados con "helm pull" y manifiestos renderizados con
+# "helm template" -- son artefactos de prueba local/CI, no código fuente.
+# Se regeneran siempre desde los charts upstream + values.yaml versionados.
+pulled/
+rendered/
+
+# Reportes de Checkov/Trivy generados localmente
+checkov-report.txt
+checkov-report.json
+sonar_result.txt
+
+# Backups temporales de values.yaml (los que hicimos antes de un reclone)
+*-BACKUP.yaml
+
+# Sistema
+.DS_Store
+Thumbs.db
