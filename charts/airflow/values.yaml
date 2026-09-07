@@ -67,7 +67,6 @@ apiServer:
   extraVolumeMounts:
     - name: tmp
       mountPath: /tmp
-  securityContexts:
   waitForMigrations:
     securityContexts:
       container:
@@ -102,7 +101,6 @@ scheduler:
   extraVolumeMounts:
     - name: tmp
       mountPath: /tmp
-  securityContexts:
 
   logGroomerSidecar:
     securityContexts:
@@ -148,7 +146,6 @@ triggerer:
   extraVolumeMounts:
     - name: tmp
       mountPath: /tmp
-  securityContexts:
 
   logGroomerSidecar:
     securityContexts:
@@ -194,7 +191,6 @@ dagProcessor:
   extraVolumeMounts:
     - name: tmp
       mountPath: /tmp
-  securityContexts:
 
   logGroomerSidecar:
     securityContexts:
