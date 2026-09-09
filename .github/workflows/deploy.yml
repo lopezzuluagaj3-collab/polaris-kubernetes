@@ -301,7 +301,11 @@ jobs:
         run: |
           set -e
           echo "=== Esperando que la migración de Airflow haya completado ==="
-          kubectl wait --for=condition=complete job/airflow-run-airflow-migrations -n airflow --timeout=120s
+          if kubectl get job/airflow-run-airflow-migrations -n airflow >/dev/null 2>&1; then
+            kubectl wait --for=condition=complete job/airflow-run-airflow-migrations -n airflow --timeout=120s
+          else
+            echo "El job ya no existe (probablemente se autoeliminó tras completarse por el hook-delete-policy de Helm) — continuando."
+          fi
 
           echo "=== Verificando rollout de los componentes de Airflow ==="
           kubectl rollout status deployment/airflow-scheduler -n airflow --timeout=180s
