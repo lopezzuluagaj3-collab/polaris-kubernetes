@@ -19,6 +19,7 @@ prometheus:
       volumeClaimTemplate:
         spec:
           accessModes: ["ReadWriteOnce"]
+          storageClassName: ebs-sc
           resources:
             requests:
               storage: 10Gi
@@ -46,6 +47,7 @@ grafana:
   persistence:
     enabled: true
     size: 2Gi
+    storageClassName: ebs-sc
   resources:
     requests:
       cpu: 100m

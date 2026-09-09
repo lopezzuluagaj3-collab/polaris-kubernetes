@@ -18,6 +18,7 @@ auth:
 persistence:
   enabled: true
   size: 4Gi
+  storageClass: ebs-sc
 
 resources:
   requests:

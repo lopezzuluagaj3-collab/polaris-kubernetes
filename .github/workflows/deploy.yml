@@ -14,6 +14,7 @@ on:
 
 env:
   HELM_VERSION: v3.15.4
+  AIRFLOW_CHART_VERSION: "1.22.0"
 
 jobs:
   # ---------------------------------------------------------------------
@@ -64,13 +65,23 @@ jobs:
             [cert-manager]="jetstack/cert-manager:cert-manager"
             [ingress-nginx]="ingress-nginx/ingress-nginx:ingress-nginx"
           )
+          # Versiones fijas por chart (evita drift entre lo que se lintea/escanea
+          # aquí y lo que realmente se instala en el job "deploy"). Solo Airflow
+          # tiene versión pineada por ahora; agrega más entradas si fijas otras.
+          declare -A VERSIONS=(
+            [airflow]="${AIRFLOW_CHART_VERSION}"
+          )
           for name in "${!CHARTS[@]}"; do
             chart="${CHARTS[$name]%%:*}"
             ns="${CHARTS[$name]##*:}"
             values="charts/${name}/values.yaml"
             chart_dir_name="${chart#*/}"
-            echo "=== helm pull ${chart} -> pulled/${chart_dir_name} ==="
-            helm pull "${chart}" --untar --untardir pulled
+            version_flag=()
+            if [ -n "${VERSIONS[$name]:-}" ]; then
+              version_flag=(--version "${VERSIONS[$name]}")
+            fi
+            echo "=== helm pull ${chart} ${VERSIONS[$name]:-latest} -> pulled/${chart_dir_name} ==="
+            helm pull "${chart}" "${version_flag[@]}" --untar --untardir pulled
             echo "=== helm lint pulled/${chart_dir_name} (values: ${values}) ==="
             helm lint "pulled/${chart_dir_name}" -f "${values}"
             echo "=== helm template ${chart} -> rendered/${name}.yaml ==="
@@ -269,16 +280,37 @@ jobs:
           helm upgrade --install rabbitmq bitnami/rabbitmq \
             -n data --create-namespace -f charts/rabbitmq/values.yaml --wait --timeout 10m
 
+      # NOTA: sin --wait a propósito. El Job de migración de Airflow
+      # (migrateDatabaseJob) corre como hook post-install/post-upgrade,
+      # mientras que los pods de Airflow tienen un init-container
+      # (wait-for-airflow-migrations) que espera a que esa migración
+      # termine. Con --wait, Helm espera a que los pods estén Ready
+      # ANTES de correr los hooks post-upgrade -> candado circular que
+      # nunca se resuelve. El paso "Verify rollout" de abajo sí valida
+      # que todo haya quedado sano, sin reintroducir ese deadlock.
       - name: Deploy Airflow
         run: |
           helm upgrade --install airflow apache-airflow/airflow \
-            -n airflow --create-namespace -f charts/airflow/values.yaml --wait --timeout 15m
+            -n airflow --create-namespace -f charts/airflow/values.yaml \
+            --version ${{ env.AIRFLOW_CHART_VERSION }} --timeout 15m
 
       - name: Apply Ingress rules (Grafana)
         run: kubectl apply -f ingress/ingress-rules.yaml
 
       - name: Verify rollout
         run: |
+          set -e
+          echo "=== Esperando que la migración de Airflow haya completado ==="
+          kubectl wait --for=condition=complete job/airflow-run-airflow-migrations -n airflow --timeout=120s
+
+          echo "=== Verificando rollout de los componentes de Airflow ==="
+          kubectl rollout status deployment/airflow-scheduler -n airflow --timeout=180s
+          kubectl rollout status deployment/airflow-api-server -n airflow --timeout=180s
+          kubectl rollout status deployment/airflow-dag-processor -n airflow --timeout=180s
+          kubectl rollout status statefulset/airflow-worker -n airflow --timeout=180s
+          kubectl rollout status statefulset/airflow-triggerer -n airflow --timeout=180s
+
+          echo "=== Estado final de los pods ==="
           kubectl get pods -n data
           kubectl get pods -n airflow
           kubectl get pods -n monitoring

@@ -1,9 +1,5 @@
 # Airflow para POLARIS - namespace: airflow
 # Instalar con: helm install airflow apache-airflow/airflow -n airflow -f charts/airflow/values.yaml
-
-airflowVersion: "3.0.2"
-defaultAirflowTag: "3.0.2"
-
 executor: CeleryExecutor
 
 postgresql:
@@ -276,6 +272,13 @@ workers:
           - ALL
 
 createUserJob:
+  extraVolumes:
+    - name: tmp
+      emptyDir: {}
+  extraVolumeMounts:
+    - name: tmp
+      mountPath: /tmp
+
   securityContexts:
     container:
       allowPrivilegeEscalation: false
@@ -287,6 +290,13 @@ createUserJob:
           - ALL
 
 migrateDatabaseJob:
+  extraVolumes:
+    - name: tmp
+      emptyDir: {}
+  extraVolumeMounts:
+    - name: tmp
+      mountPath: /tmp
+
   securityContexts:
     container:
       allowPrivilegeEscalation: false

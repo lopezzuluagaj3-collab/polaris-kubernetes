@@ -24,6 +24,7 @@ primary:
   persistence:
     enabled: true
     size: 8Gi
+    storageClass: ebs-sc
   resources:
     requests:
       cpu: 250m
