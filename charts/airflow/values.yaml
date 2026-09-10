@@ -24,6 +24,15 @@ apiSecretKeySecretName: airflow-api-secret-key
 jwtSecretName: airflow-jwt-secret
 
 
+dags:
+  gitSync:
+    enabled: true
+    repo: https://github.com/lopezzuluagaj3-collab/polaris-etl.git
+    branch: main
+    subPath: "dags"
+    period: "30s"
+    wait: 30
+    maxFailures: 0
 # apiServer.base_url debe coincidir con el host del Ingress de abajo, si no
 # el redirect interno del login/JWT queda mal armado.
 config:
@@ -226,6 +235,38 @@ dagProcessor:
           - ALL
 
 workers:
+  env:
+    - name: KAGGLE_API_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: polaris-etl-secrets
+          key: KAGGLE_API_TOKEN
+    - name: ETL_POSTGRES_HOST
+      valueFrom:
+        secretKeyRef:
+          name: polaris-etl-secrets
+          key: ETL_POSTGRES_HOST
+    - name: ETL_POSTGRES_PORT
+      valueFrom:
+        secretKeyRef:
+          name: polaris-etl-secrets
+          key: ETL_POSTGRES_PORT
+    - name: ETL_POSTGRES_DB
+      valueFrom:
+        secretKeyRef:
+          name: polaris-etl-secrets
+          key: ETL_POSTGRES_DB
+    - name: ETL_POSTGRES_USER
+      valueFrom:
+        secretKeyRef:
+          name: polaris-etl-secrets
+          key: ETL_POSTGRES_USER
+    - name: ETL_POSTGRES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: polaris-etl-secrets
+          key: ETL_POSTGRES_PASSWORD
+
   celery:
     logGroomerSidecar:
       securityContexts:

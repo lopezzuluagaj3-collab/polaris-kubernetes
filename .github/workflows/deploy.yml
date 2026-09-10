@@ -10,6 +10,8 @@ on:
       - ".github/workflows/deploy.yml"
   pull_request:
     branches: [main]
+  repository_dispatch:
+    types: [deploy-airflow]
   workflow_dispatch: {}
 
 env:
@@ -292,7 +294,10 @@ jobs:
         run: |
           helm upgrade --install airflow apache-airflow/airflow \
             -n airflow --create-namespace -f charts/airflow/values.yaml \
-            --version ${{ env.AIRFLOW_CHART_VERSION }} --timeout 15m
+            --version ${{ env.AIRFLOW_CHART_VERSION }} \
+            --set images.airflow.repository=ghcr.io/lopezzuluagaj3-collab/polaris-airflow \
+            --set images.airflow.tag=${{ github.event.client_payload.image_tag || 'v0.1.0' }} \
+            --timeout 15m
 
       - name: Apply Ingress rules (Grafana)
         run: kubectl apply -f ingress/ingress-rules.yaml
