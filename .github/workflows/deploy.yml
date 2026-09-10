@@ -278,9 +278,11 @@ jobs:
       - name: Deploy data layer (Postgres + RabbitMQ)
         run: |
           helm upgrade --install postgres bitnami/postgresql \
-            -n data --create-namespace -f charts/postgresql/values.yaml --wait --timeout 10m
+            -n data --create-namespace -f charts/postgresql/values.yaml \
+            --version 18.11.0 --wait --timeout 10m
           helm upgrade --install rabbitmq bitnami/rabbitmq \
-            -n data --create-namespace -f charts/rabbitmq/values.yaml --wait --timeout 10m
+            -n data --create-namespace -f charts/rabbitmq/values.yaml \
+            --version 16.0.14 --wait --timeout 10m
 
       # NOTA: sin --wait a propósito. El Job de migración de Airflow
       # (migrateDatabaseJob) corre como hook post-install/post-upgrade,
