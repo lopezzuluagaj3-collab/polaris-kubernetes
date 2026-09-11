@@ -38,6 +38,15 @@ primary:
           name: warehouse-creds
           key: database
 
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1536Mi
+
+
   initdb:
     scripts:
       create-warehouse-db.sh: |
