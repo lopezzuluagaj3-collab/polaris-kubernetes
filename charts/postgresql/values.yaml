@@ -38,8 +38,6 @@ primary:
           name: warehouse-creds
           key: database
 
-
-
   initdb:
     scripts:
       create-warehouse-db.sh: |
@@ -50,6 +48,7 @@ primary:
           CREATE USER "${WAREHOUSE_DB_USER}" WITH PASSWORD '${WAREHOUSE_DB_PASSWORD}';
           GRANT ALL PRIVILEGES ON DATABASE "${WAREHOUSE_DB_NAME}" TO "${WAREHOUSE_DB_USER}";
         EOSQL
+
 # Métricas para que Prometheus las scrapee (namespace monitoring)
 metrics:
   enabled: true
