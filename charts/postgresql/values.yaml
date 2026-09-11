@@ -38,26 +38,16 @@ primary:
           name: warehouse-creds
           key: database
 
+
+
   initdb:
     scripts:
       create-warehouse-db.sh: |
         #!/bin/bash
         set -e
-        if [ -f "/opt/bitnami/postgresql/secrets/password" ]; then
-          export PGPASSWORD="$(cat /opt/bitnami/postgresql/secrets/password)"
-        fi
-        psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
-          SELECT 'CREATE DATABASE "${WAREHOUSE_DB_NAME}"'
-          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${WAREHOUSE_DB_NAME}')\gexec
-
-          DO \$\$
-          BEGIN
-            IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${WAREHOUSE_DB_USER}') THEN
-              CREATE USER "${WAREHOUSE_DB_USER}" WITH PASSWORD '${WAREHOUSE_DB_PASSWORD}';
-            END IF;
-          END
-          \$\$;
-
+        psql -v ON_ERROR_STOP=1 --username "postgres" <<-EOSQL
+          CREATE DATABASE "${WAREHOUSE_DB_NAME}";
+          CREATE USER "${WAREHOUSE_DB_USER}" WITH PASSWORD '${WAREHOUSE_DB_PASSWORD}';
           GRANT ALL PRIVILEGES ON DATABASE "${WAREHOUSE_DB_NAME}" TO "${WAREHOUSE_DB_USER}";
         EOSQL
 # Métricas para que Prometheus las scrapee (namespace monitoring)
