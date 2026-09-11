@@ -243,41 +243,42 @@ dagProcessor:
           - ALL
 
 workers:
-  env:
-    - name: KAGGLE_API_TOKEN
-      valueFrom:
-        secretKeyRef:
-          name: polaris-etl-secrets
-          key: KAGGLE_API_TOKEN
-    - name: ETL_POSTGRES_HOST
-      valueFrom:
-        secretKeyRef:
-          name: polaris-etl-secrets
-          key: ETL_POSTGRES_HOST
-    - name: ETL_POSTGRES_PORT
-      valueFrom:
-        secretKeyRef:
-          name: polaris-etl-secrets
-          key: ETL_POSTGRES_PORT
-    - name: ETL_POSTGRES_DB
-      valueFrom:
-        secretKeyRef:
-          name: polaris-etl-secrets
-          key: ETL_POSTGRES_DB
-    - name: ETL_POSTGRES_USER
-      valueFrom:
-        secretKeyRef:
-          name: polaris-etl-secrets
-          key: ETL_POSTGRES_USER
-    - name: ETL_POSTGRES_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: polaris-etl-secrets
-          key: ETL_POSTGRES_PASSWORD
-    - name: KAGGLE_CONFIG_DIR
-      value: "/tmp/kaggle-config"
-
   celery:
+    env:
+      - name: KAGGLE_API_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: polaris-etl-secrets
+            key: KAGGLE_API_TOKEN
+      - name: ETL_POSTGRES_HOST
+        valueFrom:
+          secretKeyRef:
+            name: polaris-etl-secrets
+            key: ETL_POSTGRES_HOST
+      - name: ETL_POSTGRES_PORT
+        valueFrom:
+          secretKeyRef:
+            name: polaris-etl-secrets
+            key: ETL_POSTGRES_PORT
+      - name: ETL_POSTGRES_DB
+        valueFrom:
+          secretKeyRef:
+            name: polaris-etl-secrets
+            key: ETL_POSTGRES_DB
+      - name: ETL_POSTGRES_USER
+        valueFrom:
+          secretKeyRef:
+            name: polaris-etl-secrets
+            key: ETL_POSTGRES_USER
+      - name: ETL_POSTGRES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: polaris-etl-secrets
+            key: ETL_POSTGRES_PASSWORD
+      - name: KAGGLE_CONFIG_DIR
+        value: "/tmp/kaggle-config"
+      - name: AIRFLOW_PROJECT_ROOT
+        value: "/opt/airflow"
     extraVolumes:
       - name: etl-data
         emptyDir: {}
@@ -308,29 +309,22 @@ workers:
           capabilities:
             drop:
               - ALL
-  extraVolumes:
-    - name: tmp
-      emptyDir: {}
-  extraVolumeMounts:
-    - name: tmp
-      mountPath: /tmp
-
-  securityContexts:
-    pod:
-      runAsNonRoot: true
-      runAsUser: 50000
-      runAsGroup: 0
-      fsGroup: 0
-      seccompProfile:
-        type: RuntimeDefault
-    container:
-      allowPrivilegeEscalation: false
-      readOnlyRootFilesystem: true
-      runAsNonRoot: true
-      runAsUser: 50000
-      capabilities:
-        drop:
-          - ALL
+    securityContexts:
+      pod:
+        runAsNonRoot: true
+        runAsUser: 50000
+        runAsGroup: 0
+        fsGroup: 0
+        seccompProfile:
+          type: RuntimeDefault
+      container:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 50000
+        capabilities:
+          drop:
+            - ALL
 
 createUserJob:
   extraVolumes:
