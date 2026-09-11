@@ -274,8 +274,16 @@ workers:
         secretKeyRef:
           name: polaris-etl-secrets
           key: ETL_POSTGRES_PASSWORD
+    - name: KAGGLE_CONFIG_DIR
+      value: "/tmp/kaggle-config"
 
   celery:
+    extraVolumes:
+      - name: etl-data
+        emptyDir: {}
+    extraVolumeMounts:
+      - name: etl-data
+        mountPath: /opt/airflow/data
     logGroomerSidecar:
       securityContexts:
         container:
