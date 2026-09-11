@@ -243,7 +243,7 @@ jobs:
     runs-on: [self-hosted, polaris-airflow]
     environment: production
     needs: trivy
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || github.event_name == 'repository_dispatch'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
