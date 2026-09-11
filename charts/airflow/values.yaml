@@ -27,19 +27,16 @@ jwtSecretName: airflow-jwt-secret
 dags:
   gitSync:
     enabled: true
-    repo: https://github.com/lopezzuluagaj3-collab/polaris-etl.git
+    repo: https://github.com/lopezzuluagaj3-collab/polaris-airflow.git
     branch: main
     subPath: "dags"
     period: "30s"
     wait: 30
     maxFailures: 0
-    env:
-      - name: GITSYNC_ADD_USER
-        value: "false"
     securityContexts:
       container:
         allowPrivilegeEscalation: false
-        readOnlyRootFilesystem: true
+        readOnlyRootFilesystem: false
         runAsNonRoot: true
         capabilities:
           drop:

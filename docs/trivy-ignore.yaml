@@ -107,3 +107,10 @@ misconfigurations:
       - airflow.yaml
     statement: "airflow-pod-launcher-role necesita pods/exec para KubernetesPodOperator/KubernetesExecutor. No configurable desde values.yaml; mitigado con SA dedicada por namespace y NetworkPolicy de egress restringido."
     expired_at: 2027-06-30
+
+
+
+  - id: KSV-0014
+    paths:
+      - charts\airflow\values.yaml
+    statement: "KSV-0014: git-sync requiere escribir en /etc/passwd para registrar su UID (comportamiento hardcodeado por el chart oficial de Apache Airflow, GIT_SYNC_ADD_USER=true"
