@@ -33,14 +33,16 @@ dags:
     period: "30s"
     wait: 30
     maxFailures: 0
-    securityContexts:
-      container:
-        allowPrivilegeEscalation: false
-        readOnlyRootFilesystem: true
-        runAsNonRoot: true
-        capabilities:
-          drop:
-            - ALL
+    env:
+      - name: GITSYNC_ADD_USER
+        value: "false"
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      capabilities:
+        drop:
+          - ALL
 # apiServer.base_url debe coincidir con el host del Ingress de abajo, si no
 # el redirect interno del login/JWT queda mal armado.
 config:
