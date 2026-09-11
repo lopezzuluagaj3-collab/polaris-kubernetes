@@ -21,17 +21,43 @@ auth:
     userPasswordKey: password
 
 primary:
-  persistence:
-    enabled: true
-    size: 8Gi
-    storageClass: ebs-sc
-  resources:
-    requests:
-      cpu: 250m
-      memory: 256Mi
-    limits:
-      cpu: 1000m
-      memory: 1Gi
+  extraEnvVars:
+    - name: WAREHOUSE_DB_USER
+      valueFrom:
+        secretKeyRef:
+          name: warehouse-creds
+          key: username
+    - name: WAREHOUSE_DB_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: warehouse-creds
+          key: password
+    - name: WAREHOUSE_DB_NAME
+      valueFrom:
+        secretKeyRef:
+          name: warehouse-creds
+          key: database
+
+  initdb:
+    scripts:
+      create-warehouse-db.sh: |
+        #!/bin/bash
+        set -e
+        export PGPASSWORD="$(cat /opt/bitnami/postgresql/secrets/postgres-password)"
+        psql -v ON_ERROR_STOP=1 --username "postgres" <<-EOSQL
+          SELECT 'CREATE DATABASE "${WAREHOUSE_DB_NAME}"'
+          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${WAREHOUSE_DB_NAME}')\gexec
+
+          DO \$\$
+          BEGIN
+            IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${WAREHOUSE_DB_USER}') THEN
+              CREATE USER "${WAREHOUSE_DB_USER}" WITH PASSWORD '${WAREHOUSE_DB_PASSWORD}';
+            END IF;
+          END
+          \$\$;
+
+          GRANT ALL PRIVILEGES ON DATABASE "${WAREHOUSE_DB_NAME}" TO "${WAREHOUSE_DB_USER}";
+        EOSQL
 
 # Métricas para que Prometheus las scrapee (namespace monitoring)
 metrics:
