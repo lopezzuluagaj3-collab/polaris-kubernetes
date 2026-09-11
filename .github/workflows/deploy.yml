@@ -298,7 +298,7 @@ jobs:
             -n airflow --create-namespace -f charts/airflow/values.yaml \
             --version ${{ env.AIRFLOW_CHART_VERSION }} \
             --set images.airflow.repository=ghcr.io/lopezzuluagaj3-collab/polaris-airflow \
-            --set images.airflow.tag=${{ github.event.client_payload.image_tag || 'v0.1.0' }} \
+            --set images.airflow.tag=${{ github.event.client_payload.image_tag || 'latest' }} \
             --timeout 15m
 
       - name: Apply Ingress rules (Grafana)

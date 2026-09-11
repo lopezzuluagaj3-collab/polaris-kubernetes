@@ -62,6 +62,10 @@ ingress:
           # arriba en el Ingress -- no lo crees tú a mano.
           secretName: airflow-tls
 
+images:
+  airflow:
+    pullPolicy: Always
+
 statsd:
   enabled: false
 
