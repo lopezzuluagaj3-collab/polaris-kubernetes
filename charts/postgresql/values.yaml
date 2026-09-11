@@ -43,6 +43,7 @@ primary:
       create-warehouse-db.sh: |
         #!/bin/bash
         set -e
+        export PGPASSWORD="$(cat "$POSTGRES_PASSWORD_FILE")"
         psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
           CREATE DATABASE "${WAREHOUSE_DB_NAME}";
           CREATE USER "${WAREHOUSE_DB_USER}" WITH PASSWORD '${WAREHOUSE_DB_PASSWORD}';
