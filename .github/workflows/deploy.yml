@@ -240,8 +240,7 @@ jobs:
   # ---------------------------------------------------------------------
   deploy:
     name: Deploy
-    runs-on: [self-hosted, polaris-airflow]
-    environment: production
+    runs-on: [self-hosted, polaris-kubernetes]
     needs: trivy
     if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch'
     steps:
