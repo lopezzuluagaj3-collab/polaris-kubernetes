@@ -45,7 +45,7 @@ dags:
 # el redirect interno del login/JWT queda mal armado.
 config:
   api:
-    base_url: "https://polaris-airflow.duckdns.org"
+    base_url: "https://polari-airflow.duckdns.org"
 
 ingress:
   enabled: true
@@ -55,7 +55,7 @@ ingress:
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt-prod
     hosts:
-      - name: polaris-airflow.duckdns.org
+      - name: polari-airflow.duckdns.org
         tls:
           enabled: true
           # cert-manager crea este Secret solo cuando ve la annotation de

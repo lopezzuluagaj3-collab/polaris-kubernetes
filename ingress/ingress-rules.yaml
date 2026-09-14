@@ -13,11 +13,11 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - polaris-grafana.duckdns.org
+        - polari-grafana.duckdns.org
       # cert-manager crea este Secret solo -- no lo crees tú a mano.
       secretName: grafana-tls
   rules:
-    - host: polaris-grafana.duckdns.org
+    - host: polari-grafana.duckdns.org
       http:
         paths:
           - path: /
