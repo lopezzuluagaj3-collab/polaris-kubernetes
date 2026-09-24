@@ -103,9 +103,18 @@ El pipeline también descarga los charts, ejecuta `helm lint` y genera manifests
 
 Los workloads se organizan en `airflow`, `data` y `monitoring`. Esta separación facilita permisos, troubleshooting, políticas de red y lectura operativa del clúster.
 
-### Almacenamiento persistente
+### Cilium CNI con eBPF (O(1)) vs iptables tradicional (O(N))
 
-PostgreSQL, RabbitMQ, Prometheus y Grafana solicitan almacenamiento persistente mediante la clase `ebs-sc`, provista por AWS EBS CSI. RabbitMQ y la observabilidad declaran tamaños y límites de recursos explícitos para hacer visible el comportamiento esperado del ambiente.
+En lugar del stack de red por defecto basado en `kube-proxy` e `iptables`, POLARIS implementa **Cilium con eBPF**:
+- **Bypass del cuello de botella O(N):** El enrutamiento tradicional con `iptables` recorre listas enlazadas de reglas de forma secuencial ($O(N)$). Con cientos de servicios y endpoints, este escaneo lineal incrementa la latencia y satura la CPU del kernel. Cilium reemplaza `kube-proxy` inyectando programas eBPF que resuelven los endpoints mediante **BPF Hash Maps** en tiempo constante ($O(1)$), garantizando latencia ultrabaja sin importar la escala.
+- **Sin bloqueos de tabla:** Cuando un Pod escala o muere, `iptables` debe vaciar y reescribir la tabla completa en memoria del kernel con bloqueo atómico. Con eBPF, Cilium actualiza las entradas de los mapas hash de forma atómica e instantánea sin interrumpir el tráfico existente.
+- **Seguridad perimetral:** Las NetworkPolicies de Cilium se evalúan por identidades de seguridad criptográficas a nivel de socket y kernel, no por IPs efímeras sujetas a reciclaje.
+
+### Almacenamiento persistente y StatefulSets
+
+Para los servicios con estado (PostgreSQL, RabbitMQ, Prometheus y Grafana), se utiliza la StorageClass `ebs-sc` sobre volúmenes AWS EBS gp3 gestionados por el driver CSI:
+- **StatefulSets sobre Deployments:** Los motores transaccionales (PostgreSQL y RabbitMQ) se gestionan con **StatefulSets** en lugar de Deployments sin estado. Esto provee identidades de red ordinales y estables (`postgresql-0`, `rabbitmq-0`) e inicialización ordenada.
+- **Aislamiento con `volumeClaimTemplates`:** Cada réplica monta un volumen EBS independiente aprovisionado automáticamente por su plantilla de PVC, eliminando el riesgo de corrupción de datos (*Split-Brain*) que ocurriría si múltiples Pods intentaran escribir simultáneamente sobre un mismo disco de bloques.
 
 ## Seguridad y DevSecOps
 
@@ -285,3 +294,10 @@ Airflow se despliega sin `--wait` de forma intencional: su job de migración se 
 ## Licencia
 
 Proyecto de portafolio personal. Los charts y componentes de terceros mantienen sus respectivas licencias.
+
+---
+
+## 👨‍💻 Autor
+**Juan Diego López Zuluaga**  
+DevOps & Cloud Infrastructure Engineer | Medellín, Colombia  
+*Especialización en Kubernetes, Cilium eBPF, Terraform, Linux Internals, AWS y DevSecOps.*
