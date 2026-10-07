@@ -1,31 +1,77 @@
-# Ingress para Grafana (namespace: monitoring)
-# El Ingress de Airflow ya viene integrado en charts/airflow/values.yaml (ingress.apiServer)
-# y no necesita definirse aquí aparte.
+#airflow
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: grafana
+  name: airflow-ingress
+  namespace: airflow
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: SAMEORIGIN";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+spec:
+  rules:
+  - host: polari-airflow.duckdns.org
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: airflow-webserver
+            port:
+              number: 8080
+
+---
+#hubble
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hubble-ui-ingress
+  namespace: kube-system
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: SAMEORIGIN";
+      more_set_headers "X-Content-Type-Options: nosniff";
+spec:
+  rules:
+  - host: polari-hubble.duckdns.org
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: hubble-ui
+            port:
+              number: 80
+
+---
+#grafana
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana-ingress
   namespace: monitoring
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/rewrite-target: /
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: SAMEORIGIN";
+      more_set_headers "X-Content-Type-Options: nosniff";
 spec:
-  ingressClassName: nginx
-  tls:
-    - hosts:
-        - polari-grafana.duckdns.org
-      # cert-manager crea este Secret solo -- no lo crees tú a mano.
-      secretName: grafana-tls
   rules:
-    - host: polari-grafana.duckdns.org
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                # el chart kube-prometheus-stack nombra el service como
-                # "<release-name>-grafana" -- ajusta si usaste otro release name
-                name: monitoring-grafana
-                port:
-                  number: 80
+  - host: polari-grafana.duckdns.org
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: monitoring-grafana
+            port:
+              number: 80
