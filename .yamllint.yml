@@ -3,5 +3,7 @@ rules:
   line-length: disable
   document-start: disable
   comments-indentation: disable
+  new-line-at-end-of-file: disable
   truthy:
     check-keys: false
+
