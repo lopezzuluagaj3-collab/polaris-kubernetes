@@ -8,12 +8,6 @@ postgresql:
 redis:
   enabled: false
 
-# -----------------------------------------------------------------------------
-# Todas las credenciales viven en Secrets de Kubernetes (creados una sola vez
-# con scripts/create-secrets.sh, directo en el nodo -- NUNCA en este archivo).
-# Cada *SecretName apunta a un Secret con una única key llamada "connection"
-# que contiene la connection string COMPLETA (usuario+password incluidos).
-# -----------------------------------------------------------------------------
 data:
   metadataSecretName: airflow-metadata
   resultBackendSecretName: airflow-result-backend
@@ -48,19 +42,9 @@ config:
     base_url: "https://polari-airflow.duckdns.org"
 
 ingress:
-  enabled: true
-  apiServer:
-    enabled: true
-    ingressClassName: nginx
-    annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-prod
-    hosts:
-      - name: polari-airflow.duckdns.org
-        tls:
-          enabled: true
-          # cert-manager crea este Secret solo cuando ve la annotation de
-          # arriba en el Ingress -- no lo crees tú a mano.
-          secretName: airflow-tls
+  enabled: false
+  web:
+    enabled: false
 
 images:
   airflow:

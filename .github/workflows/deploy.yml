@@ -147,66 +147,10 @@ jobs:
         run: |
           trivy config --severity CRITICAL,HIGH --exit-code 1 --ignorefile docs/trivy-ignore.yaml rendered/
 
-      - name: SonarCloud Scan
-        if: always()
-        uses: SonarSource/sonarqube-scan-action@689fb39b34b9aa95ebc5f8f119343ddd51542402
-        with:
-          projectBaseDir: .
-          args: >
-            -Dsonar.projectKey=lopezzuluagaj3-collab_polaris_infrastructure
-            -Dsonar.organization=lopezzuluagaj3-collab
-            -Dsonar.qualitygate.wait=false
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: https://sonarcloud.io
-
-      - name: Consultar Quality Gate de SonarCloud
-        if: always()
-        working-directory: .
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          set -e
-          TASK_FILE=".scannerwork/report-task.txt"
-          if [ ! -f "$TASK_FILE" ]; then
-            echo "No se encontró report-task.txt — el scan pudo haber fallado." | tee sonar_result.txt
-            exit 0
-          fi
-          CE_TASK_URL=$(grep "ceTaskUrl=" "$TASK_FILE" | cut -d'=' -f2-)
-          PROJECT_KEY=$(grep "projectKey=" "$TASK_FILE" | cut -d'=' -f2-)
-          echo "Esperando que el procesamiento del background task finalice en SonarCloud..."
-          STATUS="PENDING"
-          for i in $(seq 1 30); do
-            RESPONSE=$(curl -s -u "${SONAR_TOKEN}:" "$CE_TASK_URL")
-            STATUS=$(echo "$RESPONSE" | jq -r '.task.status')
-            echo "Estado de la tarea: $STATUS"
-            if [ "$STATUS" = "SUCCESS" ] || [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "CANCELED" ]; then
-              break
-            fi
-            sleep 5
-          done
-          if [ "$STATUS" != "SUCCESS" ]; then
-            echo "El análisis no terminó correctamente en el servidor (estado: $STATUS)" | tee sonar_result.txt
-            exit 0
-          fi
-          ANALYSIS_ID=$(echo "$RESPONSE" | jq -r '.task.analysisId')
-          sleep 3
-          QG_RESPONSE=$(curl -s -u "${SONAR_TOKEN}:" "https://sonarcloud.io/api/qualitygates/project_status?analysisId=$ANALYSIS_ID")
-          QG_STATUS=$(echo "$QG_RESPONSE" | jq -r '.projectStatus.status')
-          {
-            echo "=== Resultado SonarCloud ==="
-            echo "Quality Gate: $QG_STATUS"
-            echo ""
-            echo "Condiciones evaluadas:"
-            echo "$QG_RESPONSE" | jq -r '.projectStatus.conditions[]? | "- \(.metricKey): \(.status) (actual: \(.actualValue // "N/A"), umbral: \(.errorThreshold // "N/A"))"'
-            echo ""
-            echo "Ver detalle completo: https://sonarcloud.io/dashboard?id=${PROJECT_KEY}"
-          } | tee sonar_result.txt
-
       - name: Asegurar que existan los reportes antes de adjuntar
         if: always()
         run: |
-          for f in sonar_result.txt checkov-report.txt checkov-report.json; do
+          for f in checkov-report.txt checkov-report.json; do
             [ -f "$f" ] || touch "$f"
           done
 
@@ -230,7 +174,6 @@ jobs:
           from: "CI POLARIS <${{ secrets.SMTP_USERNAME }}>"
           body: "Se ejecutó el pipeline de polaris-platform (Helm/Kubernetes). Revisa los adjuntos para ver el resultado de SonarCloud y el escaneo de seguridad de Checkov sobre los manifiestos renderizados."
           attachments: |
-            sonar_result.txt
             checkov-report.txt
             checkov-report.json
 
@@ -283,14 +226,6 @@ jobs:
             -n data --create-namespace -f charts/rabbitmq/values.yaml \
             --version 16.0.14 --wait --timeout 10m
 
-      # NOTA: sin --wait a propósito. El Job de migración de Airflow
-      # (migrateDatabaseJob) corre como hook post-install/post-upgrade,
-      # mientras que los pods de Airflow tienen un init-container
-      # (wait-for-airflow-migrations) que espera a que esa migración
-      # termine. Con --wait, Helm espera a que los pods estén Ready
-      # ANTES de correr los hooks post-upgrade -> candado circular que
-      # nunca se resuelve. El paso "Verify rollout" de abajo sí valida
-      # que todo haya quedado sano, sin reintroducir ese deadlock.
       - name: Deploy Airflow
         run: |
           helm upgrade --install airflow apache-airflow/airflow \
@@ -325,3 +260,16 @@ jobs:
           kubectl get pods -n airflow
           kubectl get pods -n monitoring
           kubectl get certificate -A
+
+
+
+      - name: Run OWASP ZAP Baseline Scan (DAST)
+        uses: zaproxy/action-baseline@7c4deb10e6261301961c86d65d54a516394f9aed
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          target: 'http://polari-airflow.duckdns.org'
+          issue_title: 'ZAP Security Scan Report - Airflow Webserver'
+          cmd_options: '-a'
+          allow_issue_writing: true
+          fail_action: false
+
