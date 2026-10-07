@@ -63,4 +63,3 @@ spec:
                 name: monitoring-grafana
                 port:
                   number: 80
-

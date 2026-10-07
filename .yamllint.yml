@@ -4,6 +4,8 @@ rules:
   document-start: disable
   comments-indentation: disable
   new-line-at-end-of-file: disable
+  new-lines: disable
+  empty-lines:
+    max-end: 2
   truthy:
     check-keys: false
-
