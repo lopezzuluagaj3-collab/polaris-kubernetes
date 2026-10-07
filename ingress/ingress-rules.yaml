@@ -1,4 +1,4 @@
-#airflow
+# Airflow Ingress
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -15,19 +15,19 @@ metadata:
       more_set_headers "X-XSS-Protection: 1; mode=block";
 spec:
   rules:
-  - host: polari-airflow.duckdns.org
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: airflow-webserver
-            port:
-              number: 8080
+    - host: polari-airflow.duckdns.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: airflow-webserver
+                port:
+                  number: 8080
 
 ---
-#hubble
+# Hubble Ingress
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -40,19 +40,19 @@ metadata:
       more_set_headers "X-Content-Type-Options: nosniff";
 spec:
   rules:
-  - host: polari-hubble.duckdns.org
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: hubble-ui
-            port:
-              number: 80
+    - host: polari-hubble.duckdns.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hubble-ui
+                port:
+                  number: 80
 
 ---
-#grafana
+# Grafana Ingress
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -65,13 +65,13 @@ metadata:
       more_set_headers "X-Content-Type-Options: nosniff";
 spec:
   rules:
-  - host: polari-grafana.duckdns.org
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: monitoring-grafana
-            port:
-              number: 80
+    - host: polari-grafana.duckdns.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: monitoring-grafana
+                port:
+                  number: 80
