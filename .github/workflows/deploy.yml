@@ -262,7 +262,11 @@ jobs:
           kubectl get certificate -A
 
 
-
+  dast-scan:
+    name: OWASP ZAP DAST Scan
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
       - name: Run OWASP ZAP Baseline Scan (DAST)
         uses: zaproxy/action-baseline@7c4deb10e6261301961c86d65d54a516394f9aed
         with:
@@ -272,4 +276,5 @@ jobs:
           cmd_options: '-a'
           allow_issue_writing: true
           fail_action: false
+
 
